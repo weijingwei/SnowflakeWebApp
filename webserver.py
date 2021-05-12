@@ -1,12 +1,15 @@
 import pandas as pd
 from flask import Flask, render_template, request
-from snowflake import connector
+from snowflakeConnection import sfconnect
 
 app = Flask("my website")
 
 
 @app.route('/')
 def homepage():
+    cur = cnx.cursor().execute("SELECT COLOR_NAME, COUNT(*) FROM COLORS GROUP BY COLOR_NAME ORDER BY COUNT(*) DESC")
+    rows = pd.DataFrame(cur.fetchall(), columns=['Color Name', 'Votes'])
+    dfhtml = rows.to_html(index=False)
     return render_template('index.html', dfhtml=dfhtml)
 
 
@@ -17,23 +20,22 @@ def submitpage():
 
 @app.route('/thanks4submit', methods=['POST'])
 def thanks4submit():
-    colorName = request.form.get("cname")
+    colorname = request.form.get("cname")
     username = request.form.get("uname")
-    return render_template("thanks4submit.html", colorName=colorName, username=username)
+    cnx.cursor().execute("INSERT INTO COLORS(COLOR_UID, COLOR_NAME)" +
+                         "SELECT COLOR_UID_SEQ.nextval, '" + colorname + "'")
+    return render_template("thanks4submit.html", colorName=colorname, username=username)
 
-cnx = connector.connect(
-    account='xda06983',
-    user='weijingwei',
-    password='Biptwjw@205491',
-    warehouse='COMPUTE_WH',
-    database='DEMO_DB',
-    schema='PUBLIC'
-)
 
-cur = cnx.cursor()
-cur.execute("SELECT * FROM COLORS")
-rows = pd.DataFrame(cur.fetchall(), columns=['Color UID', 'Color Name'])
-dfhtml = rows.to_html()
-print(dfhtml)
+@app.route('/coolcharts')
+def coolcharts():
+    cur = cnx.cursor().execute("SELECT COLOR_NAME, COUNT(*) FROM COLORS GROUP BY COLOR_NAME ORDER BY COUNT(*) DESC")
+    data4Charts = pd.DataFrame(cur.fetchall(), columns=['color', 'votes'])
+    data4Charts.to_csv('data4charts.csv', index=False)
+    return render_template('coolcharts.html')
+
+
+
+cnx = sfconnect()
 
 app.run()
